@@ -26,7 +26,7 @@ class ApiExtractor:
 
         url = self.base_url + endpoint
 
-        response = self.session.request("GET",url,params=param)
+        response = self.session.request("GET",url,params=param, timeout=30) # added timeout for request to avoid hanging of the request in case of network issues
         print(f"response from API | URL: {response.url} | Status Code: {response.status_code}")
         
 
