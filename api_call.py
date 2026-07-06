@@ -4,8 +4,8 @@ import json
 class ApiExtractor:
 
     def __init__(self,base_url, api_token, page_size):
-        self.base_url = base_url,
-        self.api_token = api_token,
+        self.base_url = base_url
+        self.api_token = api_token
         self.page_size = page_size
         self.session = requests.session()
 
@@ -18,24 +18,22 @@ class ApiExtractor:
 
     def ExtractAll(self,endpoint, param):
 
-        response = self.session.request("get","https://jsonplaceholder.typicode.com/posts/1")
-        data = response.json()
-
-        return data
-
-
-    pass
+        url = self.base_url + endpoint
+        response = self.session.request("get",url)
+        data = response.json()        
+        for record in data:            
+            yield record
 
 
 
 # creating object for session which may have multiple API call for the same base url
 extractor = ApiExtractor(
         base_url = "https://jsonplaceholder.typicode.com/",
-        api_token = "API KEY",
+        api_token = "API KEY",      # key must be from Key management tool like AWS KMS or CSM
         page_size = 200
 )
-# key must be from Key management tool like CSM
 
-with open("output.json",'w') as f:
-    record = extractor.ExtractAll(endpoint="posts", param ={})
-    f.write(json.dumps(record))
+
+with open("output/output_data.json",'w') as f:
+    for record in extractor.ExtractAll(endpoint="posts", param ={}):
+        f.write(json.dumps(record) + "\n")
