@@ -22,19 +22,26 @@ class ApiExtractor:
     def ExtractAll(self,endpoint, param):
 
         if param is None:
-            param = {"limit": 1, "offset": 0}
+            param = {"limit": 1, "page": 0}
 
         url = self.base_url + endpoint
+        
+        while True:
 
-        response = self.session.request("GET",url,params=param, timeout=30) # added timeout for request to avoid hanging of the request in case of network issues
-        print(f"response from API | URL: {response.url} | Status Code: {response.status_code}")
-        
-
-        data = response.json()
-        
-        
-        for record in data.get("data", []):            
-            yield record
+            response = self.session.request("GET",url,params=param, timeout=30) # added timeout for request to avoid hanging of the request in case of network issues
+            response.raise_for_status() # added raise_for_status to raise an exception for HTTP error responses
+            print(f"response from API | URL: {response.url} | Status Code: {response.status_code}")
+            
+            data = response.json()
+                        
+            record = data.get("data", [])            
+            if record is None or len(record) == 0:
+                print("No more records to fetch. Exiting the loop.")
+                break
+            else:
+                print("page :", param.get("page"), "limit:", param.get("limit"))
+                param["page"] += param.get("limit")  # incrementing the page number by the limit for the next API call
+                yield record
 
 
 # Load variables from .env file
@@ -48,11 +55,11 @@ extractor = ApiExtractor(
         page_size = 200
 )
 
-#define limit and offset for offset - pagination
+#define limit and offset for  -> offset pagination
 limit = 1
-offset = 0
+offset = 1
 
 with open("output/output_data.json",'a') as f:
-    for record in extractor.ExtractAll(endpoint="records", param={"limit": limit, "offset": offset}):     
+    for record in extractor.ExtractAll(endpoint="records", param={"limit": limit, "page": offset}):     
         f.write(json.dumps(record) + "\n")
-        offset += limit
+        
