@@ -19,6 +19,22 @@ class ApiExtractor:
                                     
         self.session.timeout = 30 # added timeout for sessions to avoid hanging of the request in case of network issues
 
+    def _request_with_retry(self,method,url,param, timeout):
+
+        retries = 5
+
+        for attempt in range(retries):
+
+            response = self.session.request(method,url,params=param,timeout=timeout)
+
+            if response.status_code >=500:
+                delay = 2 ** attempt
+                print(f"Server error {response.status_code}. Retrying in {delay:.1f}s")
+                continue
+            
+            return response
+
+
     def ExtractAll(self,endpoint, param):
 
         if param is None:
@@ -28,7 +44,7 @@ class ApiExtractor:
         
         while True:
 
-            response = self.session.request("GET",url,params=param, timeout=30) # added timeout for request to avoid hanging of the request in case of network issues
+            response = self._request_with_retry("GET",url, param, timeout=30  ) # added timeout for request to avoid hanging of the request in case of network issues
             response.raise_for_status() # added raise_for_status to raise an exception for HTTP error responses
             print(f"response from API | URL: {response.url} | Status Code: {response.status_code}")
             
