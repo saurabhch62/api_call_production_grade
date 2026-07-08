@@ -2,6 +2,7 @@ import requests
 import json
 from dotenv import load_dotenv
 import os
+import time
 
 class ApiExtractor:
 
@@ -16,7 +17,7 @@ class ApiExtractor:
                                     "Accept": "application/json",
                                     "X-Reqres-Env": "prod"
                                     })
-                                    
+                                      
         self.session.timeout = 30 # added timeout for sessions to avoid hanging of the request in case of network issues
 
     def _request_with_retry(self,method,url,param, timeout):
@@ -30,8 +31,9 @@ class ApiExtractor:
             if response.status_code >=500:
                 delay = 2 ** attempt
                 print(f"Server error {response.status_code}. Retrying in {delay:.1f}s")
+                time.sleep(delay)
                 continue
-            
+
             return response
 
 
