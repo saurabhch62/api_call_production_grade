@@ -3,6 +3,7 @@ import json
 from dotenv import load_dotenv
 import os
 import time
+import random
 
 class ApiExtractor:
 
@@ -28,13 +29,26 @@ class ApiExtractor:
 
             response = self.session.request(method,url,params=param,timeout=timeout)
 
-            if response.status_code >=500:
-                delay = 2 ** attempt
-                print(f"Server error {response.status_code}. Retrying in {delay:.1f}s")
+            if response.status_code >=500:  # server error
+                delay = 2 ** attempt + random.uniform(0, 1)  # exponential backoff with jitter (randomness) to avoid thundering herd problem
+                print(f"Server error {response.status_code}. Retrying in {delay:.1f}s") 
                 time.sleep(delay)
                 continue
 
+            if response.status_code == 200:  # Server responded with rate limit exceeded
+                retry_after = response.headers.get("Retry-After")
+                if retry_after is None: retry_after = 2 ** attempt
+                delay = retry_after + random.uniform(0,1)
+
+                print(f"Server error {response.status_code}. Retrying in {delay:.1f}s")
+                time.sleep(delay)
+                continue
+                
+
+            response.raise_for_status()
             return response
+        
+        raise RuntimeError(f"Failed After 5 retries: {url}")
 
 
     def ExtractAll(self,endpoint, param):
