@@ -35,7 +35,7 @@ class ApiExtractor:
                 time.sleep(delay)
                 continue
 
-            if response.status_code == 200:  # Server responded with rate limit exceeded
+            if response.status_code == 429:  # Server responded with rate limit exceeded
                 retry_after = response.headers.get("Retry-After")
                 if retry_after is None: retry_after = 2 ** attempt
                 delay = retry_after + random.uniform(0,1)
