@@ -1,0 +1,101 @@
+import requests
+import json
+from dotenv import load_dotenv
+import os
+import time
+import random
+
+class ApiExtractor:
+
+    def __init__(self,base_url, api_token, page_size):
+        self.base_url = base_url
+        self.api_token = api_token
+        self.page_size = page_size
+        self.session = requests.session() # added session to reuse the connection for multiple API calls
+
+        self.session.headers.update({
+                                     "x-api-key": f"{self.api_token}",
+                                    "Accept": "application/json",
+                                    "X-Reqres-Env": "prod"
+                                    })
+                                      
+        self.session.timeout = 30 # added timeout for sessions to avoid hanging of the request in case of network issues
+ 
+    def _request_with_retry(self,method,url,param, timeout):
+
+        retries = 5
+
+        for attempt in range(retries):
+
+            response = self.session.request(method,url,params=param,timeout=timeout)
+
+            if response.status_code >=500:  # server error
+                delay = 2 ** attempt + random.uniform(0, 1)  # exponential backoff with jitter (randomness) to avoid thundering herd problem
+                print(f"Server error {response.status_code}. Retrying in {delay:.1f}s") 
+                time.sleep(delay)
+                continue
+
+            if response.status_code == 200:  # Server responded with rate limit exceeded
+                retry_after = response.headers.get("Retry-After")
+                if retry_after is None: retry_after = 2 ** attempt
+                delay = retry_after + random.uniform(0,1)
+
+                print(f"Server error {response.status_code}. Retrying in {delay:.1f}s")
+                time.sleep(delay)
+                continue
+                
+
+            response.raise_for_status()
+            return response
+        
+        raise RuntimeError(f"Failed After 5 retries: {url}")
+
+
+    def ExtractAll(self,endpoint, param):
+        cursor = None  # Initialize cursor to None for the first request
+
+        param["limit"] = self.page_size
+        param["cursor"] = cursor  # Add cursor to the parameters for pagination
+        
+        url = self.base_url + endpoint
+
+        
+        while True:
+
+            response = self._request_with_retry("GET",url, param, timeout=30  ) # added timeout for request to avoid hanging of the request in case of network issues
+            response.raise_for_status() # added raise_for_status to raise an exception for HTTP error responses
+            print(f"response from API | URL: {response.url} | Status Code: {response.status_code}")
+                    
+
+            data = response.json()                    
+            record = data.get("data", [])
+
+            cursor = data.get("next_cursor", None)               
+            if cursor is None :
+                print("No more records to fetch. Exiting the loop.")
+                break
+            else:
+                print("Cursor :", param.get("cursor"), "page_size:", param.get("limit"))
+                param["cursor"] = cursor  # Update the cursor for subsequent requests                
+                yield record
+
+
+# Load variables from .env file
+load_dotenv()
+
+# creating object for session which may have multiple API call for the same base url
+API_KEY = os.getenv("API_KEY")
+extractor = ApiExtractor(
+        base_url = "https://reqres.in/api/collections/products/",
+        api_token = API_KEY,
+        page_size = 200
+)
+
+#define limit and offset for  -> offset pagination
+limit = 1
+offset = 1
+
+with open("output/output_data.json",'a') as f:
+    for record in extractor.ExtractAll(endpoint="records", param={"status": "active"}):     
+        f.write(json.dumps(record) + "\n")
+        
